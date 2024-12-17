@@ -271,6 +271,8 @@ def traite_sets(html_response: str, pkmn_name: str = "Suicune"):
                 for move_element in move_elements:
                     # Extraire le nom du mouvement
                     move_name = move_element.get_text(strip=True)
+                    move_name = re.sub(r"([^ -])([A-Z])", r"\1 \2", move_name)
+                    # pour rajouter un espace lorsque les mots sont collés
 
                     # Extraire la couleur de fond (background)
                     background_color = (
@@ -287,6 +289,8 @@ def traite_sets(html_response: str, pkmn_name: str = "Suicune"):
                                 "background_color": background_color,
                             }
                         )
+
+                        print(move_name)
 
                 all_tds = set_row.find_all("td")
                 if len(all_tds) >= 4:
@@ -434,8 +438,8 @@ def main():
 
     name = input("Entrez nom:\n")
 
-    # weaknesses, builds, _, _ = get_complete_infos_thread(name_fr=name)
-    print(get_move_info(name))
+    weaknesses, builds, _, _ = get_complete_infos_thread(name_fr=name)
+    # print(get_move_info(name))
     # print(*builds, sep="\n")
 
 
