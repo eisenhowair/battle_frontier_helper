@@ -90,6 +90,49 @@ def fetch_info_pkmn(pkmn_name: str, num_pkmn: int):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def display_side_build(num_poke: int):
+    if num_poke == 1:
+        current_build_moves = st.session_state.poke1.current_build(info_voulue="moves")
+    else:
+        current_build_moves = st.session_state.poke2.current_build(info_voulue="moves")
+
+    print(type(current_build_moves))
+    # Moves
+    for move in current_build_moves:
+        st.markdown(
+            f"""
+            <div style="background-color: {move.getBgColor()}; 
+                        border-radius: 5px; 
+                        padding: 8px; 
+                        margin-bottom: 5px; 
+                        text-align: center; 
+                        color: white;">
+                <strong>{move.getName()}</strong>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def display_calc_tab():
+
+    build_left, calc_column, build_right = st.columns([0.23, 0.3, 0.23])
+    nbr_build_valide = 0
+
+    if st.session_state.poke1:
+        nbr_build_valide += 1
+        with build_left:
+            display_side_build(1)
+    if st.session_state.poke2:
+        nbr_build_valide += 1
+        with build_right:
+            display_side_build(2)
+
+    if nbr_build_valide == 2:
+        # display_calculations()
+        st.write("blabla calculation")
+
+
 def show_build(pkmn: CompetPkmn):
 
     st.header(f"{pkmn.name_en} {pkmn.build_index+1}")
@@ -222,3 +265,4 @@ with build_tab:
 
 with calc_tab:
     st.write("EEEEEeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+    display_calc_tab()

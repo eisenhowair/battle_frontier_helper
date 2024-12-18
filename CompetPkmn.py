@@ -1,4 +1,5 @@
 from model_from_api import get_move_info
+import concurrent.futures
 
 pokemon_type_colors = {
     "Normal": "#9FA19F",
@@ -53,11 +54,15 @@ class CompetPkmn:
         return self.builds[self.build_index][info_voulue]
 
     def init_builds(self, builds):
+        def create_move(move):
+            """Facilite l'utilisation de threads"""
+            return Move(name=move["move_name"], bg_color=move["background_color"])
+
         for build in builds:
-            build["moves"] = [
-                Move(name=move["move_name"], bg_color=move["background_color"])
-                for move in build["moves"]
-            ]
+            # Paralléliser la création des objets Move pour chaque build
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                build["moves"] = list(executor.map(create_move, build["moves"]))
+
         self.builds = builds
 
 
