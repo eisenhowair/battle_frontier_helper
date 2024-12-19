@@ -2,6 +2,7 @@ import streamlit as st
 from model_from_api import get_complete_infos_thread
 from CompetPkmn import CompetPkmn
 from display import *
+from calculation import *
 
 st.set_page_config(layout="wide")
 # st.title('Battle Frontier Builds')
@@ -66,7 +67,7 @@ def fetch_info_pkmn(pkmn_name: str, num_pkmn: int):
     st.markdown('<div class="vertical-align">', unsafe_allow_html=True)
     if st.button(label="Go", use_container_width=True, key=f"button{num_pkmn}"):
         try:
-            weaknesses, builds, name_en, name_fr = get_complete_infos_thread(
+            weaknesses, builds, name_en, name_fr, types = get_complete_infos_thread(
                 name_fr=pkmn_name
             )
             poke = CompetPkmn(
@@ -74,6 +75,7 @@ def fetch_info_pkmn(pkmn_name: str, num_pkmn: int):
                 name_en=name_en,
                 builds=builds,
                 weaknesses=weaknesses,
+                type_pkmn=types,
             )
             if num_pkmn == 1:
                 put_in_session(poke1=poke)
@@ -88,49 +90,6 @@ def fetch_info_pkmn(pkmn_name: str, num_pkmn: int):
                 "Erreur rencontrée. Cela peut être dû à une erreur dans le nom tapé."
             )
     st.markdown("</div>", unsafe_allow_html=True)
-
-
-def display_side_build(num_poke: int):
-    if num_poke == 1:
-        current_build_moves = st.session_state.poke1.current_build(info_voulue="moves")
-    else:
-        current_build_moves = st.session_state.poke2.current_build(info_voulue="moves")
-
-    print(type(current_build_moves))
-    # Moves
-    for move in current_build_moves:
-        st.markdown(
-            f"""
-            <div style="background-color: {move.getBgColor()}; 
-                        border-radius: 5px; 
-                        padding: 8px; 
-                        margin-bottom: 5px; 
-                        text-align: center; 
-                        color: white;">
-                <strong>{move.getName()}</strong>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
-def display_calc_tab():
-
-    build_left, calc_column, build_right = st.columns([0.23, 0.3, 0.23])
-    nbr_build_valide = 0
-
-    if st.session_state.poke1:
-        nbr_build_valide += 1
-        with build_left:
-            display_side_build(1)
-    if st.session_state.poke2:
-        nbr_build_valide += 1
-        with build_right:
-            display_side_build(2)
-
-    if nbr_build_valide == 2:
-        # display_calculations()
-        st.write("blabla calculation")
 
 
 def show_build(pkmn: CompetPkmn):
@@ -230,9 +189,8 @@ with build_tab:
 
         # Affichage des faiblesses dans la colonne input_col
         if st.session_state.poke1:
-            weaknesses = st.session_state.poke1.weaknesses
             st.write("**Faiblesses :**")
-            display_weakness_tags(weaknesses=weaknesses)
+            display_weakness_tags(weaknesses=st.session_state.poke1.weaknesses)
 
         input_col_inner2, button_col2 = st.columns([0.7, 0.3])
         with input_col_inner2:
@@ -244,9 +202,8 @@ with build_tab:
             fetch_info_pkmn(pkmn_name=pkmn_name2, num_pkmn=2)
 
         if st.session_state.poke2:
-            weaknesses = st.session_state.poke2.weaknesses
             st.write("**Faiblesses :**")
-            display_weakness_tags(weaknesses=weaknesses)
+            display_weakness_tags(weaknesses=st.session_state.poke2.weaknesses)
 
     # Colonne col2 : Affichage du build sélectionné
     with col2:

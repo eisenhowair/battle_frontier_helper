@@ -85,20 +85,6 @@ def get_move_info(move_name: str):
         return None
 
 
-def raccourci_nom_type(nom_type: str):
-    type_mapping = {
-        "Electric": "Elec",
-        "Psychic": "Psy",
-        "Fighting": "Fight",
-    }  # pour raccourcir les noms de types
-
-    type_name = type_mapping.get(
-        nom_type, nom_type
-    )  # Si la valeur n'est pas dans le dictionnaire, elle reste inchangée
-
-    return type_name
-
-
 # Extraire la partie texte contenant les informations
 def traite_reponse(json_response):
 
@@ -138,7 +124,7 @@ def traite_reponse(json_response):
                 if not a_tag:
                     # print(f"Ignoré (type non trouvé dans span à l'indice {idx})")
                     continue
-                type_name = raccourci_nom_type(a_tag.get_text().strip())
+                type_name = a_tag.get_text().strip()
 
                 # Trouver le multiplicateur de dégâts dans le second td
                 tds = span.find_all("td")
@@ -192,31 +178,45 @@ def get_weakness(name: str, num_section: int = 15):
         return None
 
 
-def translate_name(name_fr: str):
+from typing import Dict, List, Tuple, Union
 
-    # print(f"name_fr avant:{name_fr}\n")
+
+def translate_name(name_fr: str) -> Union[Tuple[str, List[str]], str]:
+    """
+    Traduit le nom français d'un Pokémon en anglais et récupère ses types.
+
+    Args:
+        name_fr (str): Le nom français du Pokémon
+
+    Returns:
+        Union[Tuple[str, List[str]], str]: Un tuple contenant le nom anglais et la liste des types,
+        ou un message d'erreur si la requête échoue
+    """
     name_fr = unidecode(name_fr)  # pour normaliser le nom et enlever les accents
-    # print(f"name_fr après:{name_fr}\n")
     url = f"https://tyradex.vercel.app/api/v1/pokemon/{name_fr}"
 
-    # Faire une requête GET à l'API
-    response = requests.get(url)
+    try:
+        # Faire une requête GET à l'API
+        response = requests.get(url)
 
-    # Vérifier si la requête a réussi
-    if response.status_code == 200:
-        # Convertir la réponse JSON en dictionnaire Python
-        pokemon_data = response.json()
+        # Vérifier si la requête a réussi
+        if response.status_code == 200:
+            # Convertir la réponse JSON en dictionnaire Python
+            pokemon_data = response.json()
 
-        # Extraire le nom anglais
-        english_name = pokemon_data.get("name", {}).get("en")
+            # Extraire le nom anglais et les types
+            english_name = pokemon_data.get("name", {}).get("en")
+            types = [type_info["name"] for type_info in pokemon_data.get("types", [])]
 
-        if english_name:
-            return english_name
+            if english_name and types:
+                return english_name, types
+            else:
+                return f"Erreur : Données incomplètes pour '{name_fr}'."
         else:
-            return f"Erreur : Le nom anglais n'a pas été trouvé dans la réponse pour '{name_fr}'."
-    else:
-        # Gérer les erreurs
-        return f"Erreur : Impossible de récupérer les informations pour '{name_fr}'. Code d'erreur : {response.status_code}"
+            return f"Erreur : Impossible de récupérer les informations pour '{name_fr}'. Code d'erreur : {response.status_code}"
+
+    except requests.exceptions.RequestException as e:
+        return f"Erreur de connexion : {str(e)}"
 
 
 def traite_sets(html_response: str, pkmn_name: str = "Suicune"):
@@ -272,6 +272,10 @@ def traite_sets(html_response: str, pkmn_name: str = "Suicune"):
                     # Extraire le nom du mouvement
                     move_name = move_element.get_text(strip=True)
                     move_name = re.sub(r"([^ -])([A-Z])", r"\1 \2", move_name)
+                    if (
+                        move_name == "Return"
+                    ):  # comme uniquement la Factory nous intéresse
+                        move_name = "Frustration"
                     # pour rajouter un espace lorsque les mots sont collés
 
                     # Extraire la couleur de fond (background)
@@ -396,8 +400,10 @@ def get_complete_infos(name_fr: str, num_section: int = 10):
 
 def get_complete_infos_thread(name_fr: str):
 
-    name_en = translate_name(name_fr)
+    name_en, types = translate_name(name_fr)
     print(f"Nom anglais: {name_en}\n")
+    print(types)
+    print(type(types))
 
     sections_to_test = range(10, 21)  # Tester les sections de 12 à 19
 
@@ -405,7 +411,7 @@ def get_complete_infos_thread(name_fr: str):
 
     all_sets = get_sets(pkmn_name=name_en)
 
-    return json.loads(type_sensitivity), all_sets, name_en, name_fr
+    return json.loads(type_sensitivity), all_sets, name_en, name_fr, types
 
 
 def find_level_100_stats(species_name, move1, move2, move3, move4):
@@ -438,7 +444,8 @@ def main():
 
     name = input("Entrez nom:\n")
 
-    weaknesses, builds, _, _ = get_complete_infos_thread(name_fr=name)
+    weaknesses, builds, _, _, types = get_complete_infos_thread(name_fr=name)
+    print(type(weaknesses))
     # print(get_move_info(name))
     # print(*builds, sep="\n")
 

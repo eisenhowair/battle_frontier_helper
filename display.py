@@ -1,6 +1,20 @@
 import streamlit as st
 
 
+def raccourci_nom_type(nom_type: str):
+    type_mapping = {
+        "Electric": "Elec",
+        "Psychic": "Psy",
+        "Fighting": "Fight",
+    }  # pour raccourcir les noms de types
+
+    type_name = type_mapping.get(
+        nom_type, nom_type
+    )  # Si la valeur n'est pas dans le dictionnaire, elle reste inchangée
+
+    return type_name
+
+
 def display_weakness_tags(weaknesses):
     """Affiche les faiblesses sous forme de tags colorés."""
     cols_per_row = 4
@@ -20,7 +34,7 @@ def display_weakness_tags(weaknesses):
                                 padding: 3px; 
                                 margin-bottom: 3px; 
                                 text-align: justify;">
-                        <strong style="font-size: 14px;">{weakness['name']} x{weakness['damage_multiplier']}</strong>
+                        <strong style="font-size: 14px;">{raccourci_nom_type(weakness['name'])} x{weakness['damage_multiplier']}</strong>
                     </div>
                     """,
                     unsafe_allow_html=True,

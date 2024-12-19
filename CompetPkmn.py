@@ -2,23 +2,23 @@ from model_from_api import get_move_info
 import concurrent.futures
 
 pokemon_type_colors = {
-    "Normal": "#9FA19F",
-    "Fighting": "#FF8000",
-    "Flying": "#81B9EF",
-    "Poison": "#9141CB",
-    "Ground": "#915121",
-    "Rock": "#AFA981",
-    "Bug": "#91A119",
-    "Ghost": "#704170",
-    "Steel": "#60A1B8",
-    "Fire": "#E62829",
-    "Water": "#2980EF",
-    "Grass": "#3FA129",
-    "Electric": "#FAC000",
-    "Psychic": "#EF4179",
-    "Ice": "#3DCEF3",
-    "Dragon": "#5060E1",
-    "Dark": "#624D4E",
+    "Normal": "#C1C2C1",  #
+    "Fighting": "#FFAC59",  #
+    "Flying": "#ADD2F5",  #
+    "Poison": "#B884DD",  #
+    "Ground": "#B88E6F",  #
+    "Rock": "#CBC7AD",  #
+    "Bug": "#B8C26A",  #
+    "Ghost": "#A284A2",  #
+    "Steel": "#98C2D1",  #
+    "Fire": "#EF7374",  #
+    "Water": "#74ACF5",  #
+    "Grass": "#82C274",  #
+    "Electric": "#FCD659",  #
+    "Psychic": "#F584A8",  #
+    "Ice": "#81DFF7",  #
+    "Dragon": "#8D98EC",
+    "Dark": "#998B8C",
     "Fairy": "#EF70EF",
 }
 get_type_by_color = lambda color: next(
@@ -30,6 +30,53 @@ get_type_by_color = lambda color: next(
     None,
 )
 
+type_translation = {
+    "Normal": "Normal",
+    "Fighting": "Combat",
+    "Flying": "Vol",
+    "Poison": "Poison",
+    "Ground": "Sol",
+    "Rock": "Roche",
+    "Bug": "Insecte",
+    "Ghost": "Spectre",
+    "Steel": "Acier",
+    "Fire": "Feu",
+    "Water": "Eau",
+    "Grass": "Plante",
+    "Electric": "Électrik",
+    "Psychic": "Psy",
+    "Ice": "Glace",
+    "Dragon": "Dragon",
+    "Dark": "Ténèbres",
+    "Fairy": "Fée",
+}
+
+
+def translate_type_from_fr_to_en(fr_type):
+    if isinstance(fr_type, list):
+        # Si c'est une liste, traduire chaque type
+        return [
+            next(
+                (
+                    type_en
+                    for type_en, type_fr in type_translation.items()
+                    if type_fr.lower() == t.lower()
+                ),
+                None,
+            )
+            for t in fr_type
+        ]
+    else:
+        # Si c'est une chaîne unique, garder le comportement actuel
+        return next(
+            (
+                type_en
+                for type_en, type_fr in type_translation.items()
+                if type_fr.lower() == fr_type.lower()
+            ),
+            None,
+        )
+
 
 class CompetPkmn:
     def __init__(
@@ -38,14 +85,19 @@ class CompetPkmn:
         name_en: str,
         builds,
         weaknesses,
+        type_pkmn,
         build_index: int = 0,
     ):
 
         self.name_fr = name_fr
         self.name_en = name_en
+        self.type = translate_type_from_fr_to_en(type_pkmn)
         self.weaknesses = weaknesses
         self.build_index = build_index
         self.init_builds(builds)
+
+        # print(f"voici le type:{self.type}")
+        # print(self.weaknesses)
 
     def change_build(self, num_build: int):
         self.build_index = num_build
@@ -75,10 +127,24 @@ class Move:
         self.name = name
         self.bg_color = bg_color
         self.type = get_type_by_color(bg_color)
-        self.power, self.accuracy, self.category = get_move_info(name)
+        # print(f"{self.name} est de type {self.bg_color}")
+
+        move_stats = get_move_info(name)
+        self.power = move_stats["Power"]
+        self.accuracy = move_stats["Accuracy"]
+        self.category = move_stats["Category"]
 
     def getBgColor(self):
         return self.bg_color
 
     def getName(self):
         return self.name
+
+    def getPower(self):
+        return self.power
+
+    def getCategory(self):
+        return self.category
+
+    def getType(self):
+        return self.type
