@@ -221,5 +221,4 @@ with build_tab:
             st.write("Aucun build sélectionné.")
 
 with calc_tab:
-    st.write("EEEEEeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
     display_calc_tab()

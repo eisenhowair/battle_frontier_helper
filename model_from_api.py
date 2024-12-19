@@ -5,6 +5,7 @@ import re
 import requests
 from unidecode import unidecode
 import pandas as pd
+from dictionaries_convert import *
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -27,6 +28,10 @@ def get_move_info(move_name: str):
     Returns:
         dict: Contenant 'Power', 'Accuracy' et 'Category' de l'attaque.
     """
+
+    if move_name == "Softboiled":
+        move_name = "Soft-Boiled"
+
     url = f"https://bulbapedia.bulbagarden.net/w/api.php?action=parse&format=json&page={move_name}_(move)&section=0"
 
     try:
@@ -54,25 +59,21 @@ def get_move_info(move_name: str):
                     header_text = header.get_text(strip=True)
                     value_text = value.get_text(strip=True)
 
-                    # Récupération de la puissance (Power)
                     if "Power" in header_text:
                         power_match = re.search(r"(\d+)", value_text)
                         stats["Power"] = power_match.group(1) if power_match else None
 
-                    # Récupération de la précision (Accuracy)
                     elif "Accuracy" in header_text:
                         accuracy_match = re.search(r"(\d+)%?", value_text)
                         stats["Accuracy"] = (
                             accuracy_match.group(1) if accuracy_match else None
                         )
 
-                    # Récupération de la catégorie (Category)
+                    # fetch the "modern" category, so won't work in a 3rd gen context for the phys/special part
                     elif "Category" in header_text:
-                        # Extraire le texte, en s'assurant d'enlever les espaces inutiles
                         category = value.get_text(strip=True)
                         stats["Category"] = category
 
-        # Vérifier si les valeurs ont été trouvées
         if stats["Power"] or stats["Accuracy"] or stats["Category"]:
             return stats
         else:
@@ -89,13 +90,11 @@ def get_move_info(move_name: str):
 def traite_reponse(json_response):
 
     soup = BeautifulSoup(get_html_from_json(json_response), "html.parser")
-    # Trouver tous les spans avec style "display:inline-block;"
     spans = soup.find_all("span", style=lambda s: s and "display:inline-block;" in s)
 
     if len(spans) == 0:
         return -1
 
-    # Tableau pour stocker les données des types
     types_data = []
 
     # Parcourir les spans avec tqdm pour afficher une barre de progression
@@ -104,7 +103,6 @@ def traite_reponse(json_response):
             idx < 19
         ):  # parce que pour certains pokemons il récupère aussi les faiblesses des formes Méga
             try:
-                # Trouver la table à l'intérieur du span
                 table = span.find("table")
                 if not table:
                     # print(f"Ignoré (table non trouvée dans span à l'indice {idx})")
@@ -115,14 +113,12 @@ def traite_reponse(json_response):
                 style = table.get("style", "")
                 color_match = re.search(r"background:\s*(#?[0-9A-Fa-f]{6})", style)
                 if not color_match:
-                    # print(f"Ignoré (couleur non trouvée dans span à l'indice {idx})")
                     continue
                 color = color_match.group(1)
 
                 # Trouver le nom du type dans l'élément a
                 a_tag = span.find("a", title=lambda s: s and "type)" in s)
                 if not a_tag:
-                    # print(f"Ignoré (type non trouvé dans span à l'indice {idx})")
                     continue
                 type_name = a_tag.get_text().strip()
 
@@ -294,7 +290,7 @@ def traite_sets(html_response: str, pkmn_name: str = "Suicune"):
                             }
                         )
 
-                        print(move_name)
+                        # print(move_name)
 
                 all_tds = set_row.find_all("td")
                 if len(all_tds) >= 4:

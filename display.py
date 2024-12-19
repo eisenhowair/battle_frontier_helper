@@ -1,18 +1,5 @@
 import streamlit as st
-
-
-def raccourci_nom_type(nom_type: str):
-    type_mapping = {
-        "Electric": "Elec",
-        "Psychic": "Psy",
-        "Fighting": "Fight",
-    }  # pour raccourcir les noms de types
-
-    type_name = type_mapping.get(
-        nom_type, nom_type
-    )  # Si la valeur n'est pas dans le dictionnaire, elle reste inchangée
-
-    return type_name
+from dictionaries_convert import raccourci_nom_type
 
 
 def display_weakness_tags(weaknesses):
