@@ -1,4 +1,5 @@
 import streamlit as st
+from dictionaries_convert import raccourci_nom_type
 
 
 def display_weakness_tags(weaknesses):
@@ -20,7 +21,7 @@ def display_weakness_tags(weaknesses):
                                 padding: 3px; 
                                 margin-bottom: 3px; 
                                 text-align: justify;">
-                        <strong style="font-size: 14px;">{weakness['name']} x{weakness['damage_multiplier']}</strong>
+                        <strong style="font-size: 14px;">{raccourci_nom_type(weakness['name'])} x{weakness['damage_multiplier']}</strong>
                     </div>
                     """,
                     unsafe_allow_html=True,

@@ -1,7 +1,8 @@
 import streamlit as st
-from model_from_api import get_complete_infos
+from model_from_api import get_complete_infos_thread
 from CompetPkmn import CompetPkmn
 from display import *
+from calculation import *
 
 st.set_page_config(layout="wide")
 # st.title('Battle Frontier Builds')
@@ -66,12 +67,15 @@ def fetch_info_pkmn(pkmn_name: str, num_pkmn: int):
     st.markdown('<div class="vertical-align">', unsafe_allow_html=True)
     if st.button(label="Go", use_container_width=True, key=f"button{num_pkmn}"):
         try:
-            weaknesses, builds, name_en, name_fr = get_complete_infos(name_fr=pkmn_name)
+            weaknesses, builds, name_en, name_fr, types = get_complete_infos_thread(
+                name_fr=pkmn_name
+            )
             poke = CompetPkmn(
                 name_fr=name_fr,
                 name_en=name_en,
                 builds=builds,
                 weaknesses=weaknesses,
+                type_pkmn=types,
             )
             if num_pkmn == 1:
                 put_in_session(poke1=poke)
@@ -102,13 +106,13 @@ def show_build(pkmn: CompetPkmn):
     for move in selected_build_moves:
         st.markdown(
             f"""
-            <div style="background-color: {move['background_color']}; 
+            <div style="background-color: {move.getBgColor()}; 
                         border-radius: 5px; 
                         padding: 8px; 
                         margin-bottom: 5px; 
                         text-align: center; 
                         color: white;">
-                <strong>{move['move_name']}</strong>
+                <strong>{move.getName()}</strong>
             </div>
             """,
             unsafe_allow_html=True,
@@ -136,7 +140,7 @@ def put_in_session(poke1=None, poke2=None):
         st.session_state.poke2 = poke2
 
 
-input_col, _, col2, _, col3 = st.columns([0.23, 0.03, 0.23, 0.01, 0.22])
+build_tab, calc_tab = st.tabs(["Build", "Calc"])
 
 # Sidebar : Affichage conditionnel des builds
 with st.sidebar:
@@ -170,47 +174,51 @@ with st.sidebar:
     else:
         st.write("Aucun build disponible.")
 
-with input_col:
-    input_col_inner, button_col = st.columns([0.7, 0.3])
-    with input_col_inner:
-        pkmn_name1 = st.text_input(
-            placeholder="...", label="Entrez un nom", key="input_field"
-        )
+with build_tab:
+    input_col, _, col2, _, col3 = st.columns([0.23, 0.03, 0.23, 0.01, 0.22])
 
-    with button_col:
-        fetch_info_pkmn(pkmn_name=pkmn_name1, num_pkmn=1)
+    with input_col:
+        input_col_inner, button_col = st.columns([0.7, 0.3])
+        with input_col_inner:
+            pkmn_name1 = st.text_input(
+                placeholder="...", label="Entrez un nom", key="input_field"
+            )
 
-    # Affichage des faiblesses dans la colonne input_col
-    if st.session_state.poke1:
-        weaknesses = st.session_state.poke1.weaknesses
-        st.write("**Faiblesses :**")
-        display_weakness_tags(weaknesses=weaknesses)
+        with button_col:
+            fetch_info_pkmn(pkmn_name=pkmn_name1, num_pkmn=1)
 
-    input_col_inner2, button_col2 = st.columns([0.7, 0.3])
-    with input_col_inner2:
-        pkmn_name2 = st.text_input(
-            placeholder="...", label="Entrez un nom", key="input_field2"
-        )
+        # Affichage des faiblesses dans la colonne input_col
+        if st.session_state.poke1:
+            st.write("**Faiblesses :**")
+            display_weakness_tags(weaknesses=st.session_state.poke1.weaknesses)
 
-    with button_col2:
-        fetch_info_pkmn(pkmn_name=pkmn_name2, num_pkmn=2)
+        input_col_inner2, button_col2 = st.columns([0.7, 0.3])
+        with input_col_inner2:
+            pkmn_name2 = st.text_input(
+                placeholder="...", label="Entrez un nom", key="input_field2"
+            )
 
-    if st.session_state.poke2:
-        weaknesses = st.session_state.poke2.weaknesses
-        st.write("**Faiblesses :**")
-        display_weakness_tags(weaknesses=weaknesses)
+        with button_col2:
+            fetch_info_pkmn(pkmn_name=pkmn_name2, num_pkmn=2)
 
-# Colonne col2 : Affichage du build sélectionné
-with col2:
-    if st.session_state.poke1:
-        show_build(pkmn=st.session_state.poke1)
+        if st.session_state.poke2:
+            st.write("**Faiblesses :**")
+            display_weakness_tags(weaknesses=st.session_state.poke2.weaknesses)
 
-    else:
-        st.write("Aucun build sélectionné.")
+    # Colonne col2 : Affichage du build sélectionné
+    with col2:
+        if st.session_state.poke1:
+            show_build(pkmn=st.session_state.poke1)
 
-with col3:
-    if st.session_state.poke2:
-        show_build(pkmn=st.session_state.poke2)
+        else:
+            st.write("Aucun build sélectionné.")
 
-    else:
-        st.write("Aucun build sélectionné.")
+    with col3:
+        if st.session_state.poke2:
+            show_build(pkmn=st.session_state.poke2)
+
+        else:
+            st.write("Aucun build sélectionné.")
+
+with calc_tab:
+    display_calc_tab()

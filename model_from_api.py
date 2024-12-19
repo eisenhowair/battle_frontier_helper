@@ -5,26 +5,34 @@ import re
 import requests
 from unidecode import unidecode
 import pandas as pd
+from dictionaries_convert import *
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-def get_html_from_json(json_content):
+def get_html_from_json(content):
 
+    json_content = content.json()
     html_content = json_content["parse"]["text"]["*"]
     return html_content
 
 
 def get_move_info(move_name: str):
     """
-    Récupère la puissance (Power) et la précision (Accuracy) d'une attaque Pokémon sur Bulbapedia.
+    Récupère la puissance (Power), la précision (Accuracy) et la catégorie (Category)
+    d'une attaque Pokémon sur Bulbapedia.
 
     Args:
-        attack_name (str): Le nom de l'attaque Pokémon.
+        move_name (str): Le nom de l'attaque Pokémon.
 
     Returns:
-        dict: Contenant 'Power' et 'Accuracy' de l'attaque.
+        dict: Contenant 'Power', 'Accuracy' et 'Category' de l'attaque.
     """
 
-    url = f"https://bulbapedia.bulbagarden.net/w/api.php?action=parse&format=json&page={move_name}(move)&section=0"
+    if move_name == "Softboiled":
+        move_name = "Soft-Boiled"
+
+    url = f"https://bulbapedia.bulbagarden.net/w/api.php?action=parse&format=json&page={move_name}_(move)&section=0"
 
     try:
         # Requête GET pour récupérer la page
@@ -32,62 +40,61 @@ def get_move_info(move_name: str):
         if response.status_code != 200:
             raise Exception(f"Erreur: Page non trouvée pour l'attaque '{move_name}'.")
 
-        # Parser le HTML avec BeautifulSoup
-        soup = BeautifulSoup(response.content, "html.parser")
+        # Extraire le contenu HTML
+        html_content = get_html_from_json(response)
+        soup = BeautifulSoup(html_content, "html.parser")
 
-        # Trouver les informations dans le tableau
-        stats_table = soup.find("table", {"class": "roundy"})
-        if not stats_table:
-            raise Exception(
-                f"Impossible de trouver le tableau d'informations pour '{move_name}'."
+        # Rechercher tous les tableaux dans la page
+        tables = soup.find_all("table")
+
+        stats = {"Power": None, "Accuracy": None, "Category": None}
+
+        # Parcourir chaque tableau pour trouver les valeurs de "Power", "Accuracy" et "Category"
+        for table in tables:
+            for row in table.find_all("tr"):
+                header = row.find("th")
+                value = row.find("td")
+
+                if header and value:
+                    header_text = header.get_text(strip=True)
+                    value_text = value.get_text(strip=True)
+
+                    if "Power" in header_text:
+                        power_match = re.search(r"(\d+)", value_text)
+                        stats["Power"] = power_match.group(1) if power_match else None
+
+                    elif "Accuracy" in header_text:
+                        accuracy_match = re.search(r"(\d+)%?", value_text)
+                        stats["Accuracy"] = (
+                            accuracy_match.group(1) if accuracy_match else None
+                        )
+
+                    # fetch the "modern" category, so won't work in a 3rd gen context for the phys/special part
+                    elif "Category" in header_text:
+                        category = value.get_text(strip=True)
+                        stats["Category"] = category
+
+        if stats["Power"] or stats["Accuracy"] or stats["Category"]:
+            return stats
+        else:
+            raise ValueError(
+                f"Statistiques 'Power', 'Accuracy' ou 'Category' non trouvées pour le move {move_name}."
             )
 
-        # Parcourir les lignes pour trouver Power et Accuracy
-        stats = {"Power": None, "Accuracy": None}
-        rows = stats_table.find_all("tr")
-        for row in rows:
-            header = row.find("th")
-            value = row.find("td")
-            if header and value:
-                header_text = header.get_text(strip=True)
-                value_text = value.get_text(strip=True)
-                if "Power" in header_text:
-                    stats["Power"] = value_text
-                if "Accuracy" in header_text:
-                    stats["Accuracy"] = value_text
-
-        return stats
-
     except Exception as e:
-        print(e)
-        return {"Power": None, "Accuracy": None}
-
-
-def raccourci_nom_type(nom_type: str):
-    type_mapping = {
-        "Electric": "Elec",
-        "Psychic": "Psy",
-        "Fighting": "Fight",
-    }  # pour raccourcir les noms de types
-
-    type_name = type_mapping.get(
-        nom_type, nom_type
-    )  # Si la valeur n'est pas dans le dictionnaire, elle reste inchangée
-
-    return type_name
+        print(f"Erreur : {e}")
+        return None
 
 
 # Extraire la partie texte contenant les informations
 def traite_reponse(json_response):
 
-    soup = BeautifulSoup(get_html_from_json(json_content=json_response), "html.parser")
-    # Trouver tous les spans avec style "display:inline-block;"
+    soup = BeautifulSoup(get_html_from_json(json_response), "html.parser")
     spans = soup.find_all("span", style=lambda s: s and "display:inline-block;" in s)
 
     if len(spans) == 0:
         return -1
 
-    # Tableau pour stocker les données des types
     types_data = []
 
     # Parcourir les spans avec tqdm pour afficher une barre de progression
@@ -96,10 +103,9 @@ def traite_reponse(json_response):
             idx < 19
         ):  # parce que pour certains pokemons il récupère aussi les faiblesses des formes Méga
             try:
-                # Trouver la table à l'intérieur du span
                 table = span.find("table")
                 if not table:
-                    print(f"Ignoré (table non trouvée dans span à l'indice {idx})")
+                    # print(f"Ignoré (table non trouvée dans span à l'indice {idx})")
                     continue
                 # print(table)
 
@@ -107,23 +113,19 @@ def traite_reponse(json_response):
                 style = table.get("style", "")
                 color_match = re.search(r"background:\s*(#?[0-9A-Fa-f]{6})", style)
                 if not color_match:
-                    print(f"Ignoré (couleur non trouvée dans span à l'indice {idx})")
                     continue
                 color = color_match.group(1)
 
                 # Trouver le nom du type dans l'élément a
                 a_tag = span.find("a", title=lambda s: s and "type)" in s)
                 if not a_tag:
-                    print(f"Ignoré (type non trouvé dans span à l'indice {idx})")
                     continue
-                type_name = raccourci_nom_type(a_tag.get_text().strip())
+                type_name = a_tag.get_text().strip()
 
                 # Trouver le multiplicateur de dégâts dans le second td
                 tds = span.find_all("td")
                 if len(tds) < 2:
-                    print(
-                        f"Ignoré (multiplicateur non trouvé dans span à l'indice {idx})"
-                    )
+                    # print(f"Ignoré (multiplicateur non trouvé dans span à l'indice {idx})")
                     continue
                 damage_text = tds[1].get_text().strip()
 
@@ -161,8 +163,7 @@ def get_weakness(name: str, num_section: int = 15):
 
         # Check if the request was successful (status code 200)
         if response.status_code == 200:
-            posts = response.json()
-            return traite_reponse(posts)
+            return traite_reponse(response)
         else:
             print("Error:", response.status_code)
             return None
@@ -173,31 +174,45 @@ def get_weakness(name: str, num_section: int = 15):
         return None
 
 
-def translate_name(name_fr: str):
+from typing import Dict, List, Tuple, Union
 
-    print(f"name_fr avant:{name_fr}\n")
+
+def translate_name(name_fr: str) -> Union[Tuple[str, List[str]], str]:
+    """
+    Traduit le nom français d'un Pokémon en anglais et récupère ses types.
+
+    Args:
+        name_fr (str): Le nom français du Pokémon
+
+    Returns:
+        Union[Tuple[str, List[str]], str]: Un tuple contenant le nom anglais et la liste des types,
+        ou un message d'erreur si la requête échoue
+    """
     name_fr = unidecode(name_fr)  # pour normaliser le nom et enlever les accents
-    print(f"name_fr après:{name_fr}\n")
     url = f"https://tyradex.vercel.app/api/v1/pokemon/{name_fr}"
 
-    # Faire une requête GET à l'API
-    response = requests.get(url)
+    try:
+        # Faire une requête GET à l'API
+        response = requests.get(url)
 
-    # Vérifier si la requête a réussi
-    if response.status_code == 200:
-        # Convertir la réponse JSON en dictionnaire Python
-        pokemon_data = response.json()
+        # Vérifier si la requête a réussi
+        if response.status_code == 200:
+            # Convertir la réponse JSON en dictionnaire Python
+            pokemon_data = response.json()
 
-        # Extraire le nom anglais
-        english_name = pokemon_data.get("name", {}).get("en")
+            # Extraire le nom anglais et les types
+            english_name = pokemon_data.get("name", {}).get("en")
+            types = [type_info["name"] for type_info in pokemon_data.get("types", [])]
 
-        if english_name:
-            return english_name
+            if english_name and types:
+                return english_name, types
+            else:
+                return f"Erreur : Données incomplètes pour '{name_fr}'."
         else:
-            return f"Erreur : Le nom anglais n'a pas été trouvé dans la réponse pour '{name_fr}'."
-    else:
-        # Gérer les erreurs
-        return f"Erreur : Impossible de récupérer les informations pour '{name_fr}'. Code d'erreur : {response.status_code}"
+            return f"Erreur : Impossible de récupérer les informations pour '{name_fr}'. Code d'erreur : {response.status_code}"
+
+    except requests.exceptions.RequestException as e:
+        return f"Erreur de connexion : {str(e)}"
 
 
 def traite_sets(html_response: str, pkmn_name: str = "Suicune"):
@@ -252,6 +267,12 @@ def traite_sets(html_response: str, pkmn_name: str = "Suicune"):
                 for move_element in move_elements:
                     # Extraire le nom du mouvement
                     move_name = move_element.get_text(strip=True)
+                    move_name = re.sub(r"([^ -])([A-Z])", r"\1 \2", move_name)
+                    if (
+                        move_name == "Return"
+                    ):  # comme uniquement la Factory nous intéresse
+                        move_name = "Frustration"
+                    # pour rajouter un espace lorsque les mots sont collés
 
                     # Extraire la couleur de fond (background)
                     background_color = (
@@ -268,6 +289,8 @@ def traite_sets(html_response: str, pkmn_name: str = "Suicune"):
                                 "background_color": background_color,
                             }
                         )
+
+                        # print(move_name)
 
                 all_tds = set_row.find_all("td")
                 if len(all_tds) >= 4:
@@ -321,10 +344,9 @@ def get_sets(pkmn_name: str, num_set: int = -1, mode: str = "api"):
         if response.status_code == 200:
             # Convertir la réponse JSON en dictionnaire Python
             sets_data = traite_sets(
-                html_response=get_html_from_json(response.json()), pkmn_name=pkmn_name
+                html_response=get_html_from_json(response), pkmn_name=pkmn_name
             )
         else:
-            # Gérer les erreurs
             return f"Erreur : Impossible de récupérer les sets. Code d'erreur : {response.status_code}"
 
     elif mode == "local":
@@ -334,11 +356,32 @@ def get_sets(pkmn_name: str, num_set: int = -1, mode: str = "api"):
     return sets_data
 
 
-def get_complete_infos(name_fr: str):
+def find_valid_section(name: str, sections_to_try: list):
+    """
+    Lance plusieurs appels à get_weakness en parallèle pour tester plusieurs sections.
+    Retourne la première réponse valide.
+    """
+    with ThreadPoolExecutor() as executor:
+        # Créer un dictionnaire {future: num_section} pour suivre chaque tâche
+        futures = {
+            executor.submit(get_weakness, name, section): section
+            for section in sections_to_try
+        }
 
-    num_section = 10
+        for future in as_completed(futures):
+            result = future.result()
+            if result != -1:  # Si une réponse valide est trouvée
+                # print(f"Section {futures[future]} valide!")
+                return result
+
+    print("Aucune section valide trouvée.")
+    return -1
+
+
+def get_complete_infos(name_fr: str, num_section: int = 10):
+
     name_en = translate_name(name_fr)
-    print(f"Nom anglais: {name_en}\n")
+    # print(f"Nom anglais: {name_en}\n")
 
     type_sensitivity = get_weakness(name_en)
     while type_sensitivity == -1:
@@ -346,10 +389,25 @@ def get_complete_infos(name_fr: str):
         num_section += 1
         # print(f"Now looking in section {num_section}...\n")
         type_sensitivity = get_weakness(name=name_en, num_section=num_section)
-
     all_sets = get_sets(pkmn_name=name_en)
 
     return json.loads(type_sensitivity), all_sets, name_en, name_fr
+
+
+def get_complete_infos_thread(name_fr: str):
+
+    name_en, types = translate_name(name_fr)
+    print(f"Nom anglais: {name_en}\n")
+    print(types)
+    print(type(types))
+
+    sections_to_test = range(10, 21)  # Tester les sections de 12 à 19
+
+    type_sensitivity = find_valid_section(name_en, sections_to_test)
+
+    all_sets = get_sets(pkmn_name=name_en)
+
+    return json.loads(type_sensitivity), all_sets, name_en, name_fr, types
 
 
 def find_level_100_stats(species_name, move1, move2, move3, move4):
@@ -380,9 +438,12 @@ def find_level_100_stats(species_name, move1, move2, move3, move4):
 
 def main():
 
-    name_fr = input("Entrez nom:\n")
-    weaknesses, builds, _, _ = get_complete_infos(name_fr=name_fr)
-    print(*builds, sep="\n")
+    name = input("Entrez nom:\n")
+
+    weaknesses, builds, _, _, types = get_complete_infos_thread(name_fr=name)
+    print(type(weaknesses))
+    # print(get_move_info(name))
+    # print(*builds, sep="\n")
 
 
 if __name__ == "__main__":
