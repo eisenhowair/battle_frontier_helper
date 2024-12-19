@@ -67,21 +67,22 @@ def damage_calculation(
     move_power = float(move.getPower()) if move.getPower() is not None else 0
     move_type = move.getType()
     opponent_hp = defending_build_stats[0]
+
+    weather = screen = double_dmg = burn = stab = expert_belt = tinted_lens = berry = (
+        faiblesse_coeff
+    ) = 1
+
     sensitivity = find_weakness_by_name(
         items_list=pkmn_target.weaknesses, name_to_find=move_type
     )
 
     faiblesse_coeff = sensitivity["damage_multiplier"]
 
-    weather = screen = double_dmg = burn = stab = expert_belt = tinted_lens = berry = (
-        faiblesse_coeff
-    ) = 1
-
     if move.getCategory() == "Physical":
         A_D_ratio = attacking_build_stats[1] / defending_build_stats[2]
 
     elif move.getCategory() == "Special":
-        A_D_ratio = attacking_build_stats[3] / defending_build_stats[5]
+        A_D_ratio = attacking_build_stats[3] / defending_build_stats[4]
     else:
         return 0, 0
     damage = ((2 * 100 / 5 + 2) * move_power * A_D_ratio) / 50
@@ -148,6 +149,28 @@ def damage_calculation(
         * tinted_lens
         * berry
         * faiblesse_coeff
+    )
+    print(
+        "A/D ratio =",
+        A_D_ratio,
+        "weather =",
+        weather,
+        "screen =",
+        screen,
+        "double_dmg =",
+        double_dmg,
+        "burn =",
+        burn,
+        "stab =",
+        stab,
+        "expert_belt =",
+        expert_belt,
+        "tinted_lens =",
+        tinted_lens,
+        "berry =",
+        berry,
+        "faiblesse_coeff =",
+        faiblesse_coeff,
     )
 
     return scale_to_opp_hp_percent(
